@@ -15,17 +15,22 @@ def readadc(chan):
 
     reading = spi.xfer2([1,8+chan<<4, 0])
     data = ((reading[1]&3)<<8)+reading[2]
+    
+    #normalize min=0 max=10
+    data = (1+(10*data))/1000
+    
+    
     return data
 
 
 def Main():
     host = 'localhost'
 
-    port = 8000
+    port = 8080
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    s.connect((host, port))
+    s.connect(('192.168.0.13', port))
 
     while True:
         force = readadc(channel)

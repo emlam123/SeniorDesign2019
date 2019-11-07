@@ -32,10 +32,10 @@ def threaded(c):
 
 def Main():
     try:
-        host = ""
+        host = "localhost"
         port = 8080
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind((host, port))
+        s.bind(('192.168.0.13', port))
         print("socket binded to port", port)
 
         s.listen(5)
