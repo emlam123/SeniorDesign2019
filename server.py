@@ -30,7 +30,7 @@ def threaded(c):
         print(message)
         c.send(message.encode('ascii'))
         print("Sent to client at: " + str(datetime.datetime.now()))
-        
+
     c.close()
 
 
