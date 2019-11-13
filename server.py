@@ -2,6 +2,7 @@ import socket
 import sys
 from _thread import *
 import threading
+import datetime
 
 print_lock = threading.Lock()
 
@@ -17,16 +18,19 @@ def threaded(c):
 
         if message[0] == "1":
             message = "Received speed(mph) rate: " + message.replace("1:", '')
+            print("Received at: " + str(datetime.datetime.now()))
 
         if message[0] == "2":
             message = "Received force rate: " + message.replace("2:", '')
+            print("Received at: " + str(datetime.datetime.now()))
 
         if message[0] == "3":
             message = "Received heart rate(BPM) rate: " + message.replace("3:", '')
-
+            print("Received at: " + str(datetime.datetime.now()))
         print(message)
         c.send(message.encode('ascii'))
-
+        print("Sent to client at: " + str(datetime.datetime.now()))
+        
     c.close()
 
 
