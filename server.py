@@ -15,6 +15,7 @@ def threaded(c):
     speed_pointer = 0
     heart_rate_pointer = 0
     speed_pointer = 0
+    speed_sum = 0
 
     while True:
 
@@ -31,10 +32,18 @@ def threaded(c):
             if speed_pointer == 29:
                 print("Writing to CSV file")
                 speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time())]
+
                 with open('speed_rate.csv', 'a') as f:
                     writer = csv.writer(f)
                     for data in speed_queue:
+                        speed_sum = speed_sum + int(data[0])
                         writer.writerow(data)
+
+                with open('average_speed.csv', 'a') as f:
+                    hello = [float(speed_sum/30),str(datetime.datetime.now().time())]
+                    writer = csv.writer(f)
+                    writer.writerow(hello)
+                speed_sum = 0
                 speed_pointer = 0
             speed_queue[speed_pointer] = [message[0],str(datetime.datetime.now().time())]
             speed_pointer = speed_pointer + 1
