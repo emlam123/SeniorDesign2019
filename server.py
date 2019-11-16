@@ -3,11 +3,19 @@ import sys
 from _thread import *
 import threading
 import datetime
+import csv
 
 print_lock = threading.Lock()
 
 
 def threaded(c):
+    heart_rate_queue = []
+    speed_queue = [None] * 30
+    force_queue = []
+    speed_pointer = 0
+    heart_rate_pointer = 0
+    speed_pointer = 0
+
     while True:
 
         data = c.recv(1024)
@@ -17,8 +25,19 @@ def threaded(c):
         message = str(data.decode('ascii'))
 
         if message[0] == "1":
-            message = "Received speed(mph) rate: " + message.replace("1:", '')
-            print("Received at: " + str(datetime.datetime.now()))
+            message = message.replace("1:", '')
+            print("Received at: " + str(datetime.datetime.now().time()))
+            message = message.split("\n")
+            if speed_pointer == 29:
+                print("Writing to CSV file")
+                speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time())]
+                with open('speed_rate.csv', 'a') as f:
+                    writer = csv.writer(f)
+                    for data in speed_queue:
+                        writer.writerow(data)
+                speed_pointer = 0
+            speed_queue[speed_pointer] = [message[0],str(datetime.datetime.now().time())]
+            speed_pointer = speed_pointer + 1
 
         if message[0] == "2":
             message = "Received force rate: " + message.replace("2:", '')
@@ -27,8 +46,9 @@ def threaded(c):
         if message[0] == "3":
             message = "Received heart rate(BPM) rate: " + message.replace("3:", '')
             print("Received at: " + str(datetime.datetime.now()))
-        print(message)
-        c.send(message.encode('ascii'))
+
+            
+        c.send("Server Received at".encode('ascii'))
         print("Sent to client at: " + str(datetime.datetime.now()))
 
     c.close()
@@ -36,10 +56,10 @@ def threaded(c):
 
 def Main():
     try:
-        host = "localhost"
-        port = 8080
+        host = "192.168.1.40"
+        port = 12345
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('192.168.0.13', port))
+        s.bind(('192.168.1.40', port))
         print("socket binded to port", port)
 
         s.listen(5)
