@@ -47,7 +47,7 @@ def threaded(c):
             message = "Received heart rate(BPM) rate: " + message.replace("3:", '')
             print("Received at: " + str(datetime.datetime.now()))
 
-            
+
         c.send("Server Received at".encode('ascii'))
         print("Sent to client at: " + str(datetime.datetime.now()))
 
