@@ -19,6 +19,14 @@ def threaded(c):
         if message[0] == "1":
             message = "Received speed(mph) rate: " + message.replace("1:", '')
             print("Received at: " + str(datetime.datetime.now()))
+            speed = data.decode().split('1:')
+            speed = speed[1].strip('km/h')
+            print(speed)
+            speed = int(speed)
+            if (speed>10 and speed<20):
+                client.send(("Slow Down").encode())
+            elif (speed>20):
+                client.send(("Thats fast").encode())
 
         if message[0] == "2":
             message = "Received force rate: " + message.replace("2:", '')
@@ -36,10 +44,15 @@ def threaded(c):
 
 def Main():
     try:
-        host = "localhost"
-        port = 8080
+        hostname = socket.gethostname()
+        print(hostname)
+        ipaddr = socket.gethostbyname(hostname)
+        print(ipaddr)
+
+        host = "100.67.127.255"
+        port = 12345
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('192.168.0.13', port))
+        s.bind((host, port))
         print("socket binded to port", port)
 
         s.listen(5)

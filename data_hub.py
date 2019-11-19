@@ -24,12 +24,12 @@ def readadc(chan):
 
 
 def Main():
-    host = 'localhost'
+    host = '100.67.117.35'
 
-    port = 12345
+    port = 8080
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(('192.168.1.40',port))
+    s.connect((host,port))
     #s.connect(('192.168.0.13', port))
 
     while True:
