@@ -26,16 +26,16 @@ def readadc(chan):
 def Main():
     host = 'localhost'
 
-    port = 8080
+    port = 12345
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    s.connect(('192.168.0.13', port))
+    s.connect(('192.168.1.40',port))
+    #s.connect(('192.168.0.13', port))
 
     while True:
         force = readadc(channel)
         print("Pressure Value: %d" %force)
-        time.sleep(delay)        
+        #time.sleep(delay)        
         message = "2:" + str(force)
         s.send(message.encode('ascii'))
 
