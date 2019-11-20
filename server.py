@@ -24,9 +24,9 @@ def threaded(c):
             print(speed)
             speed = int(speed)
             if (speed>10 and speed<20):
-                client.send(("Slow Down").encode())
+                c.send(("Slow Down").encode())
             elif (speed>20):
-                client.send(("Thats fast").encode())
+                c.send(("Thats fast").encode())
 
         if message[0] == "2":
             message = "Received force rate: " + message.replace("2:", '')
@@ -36,7 +36,7 @@ def threaded(c):
             message = "Received heart rate(BPM) rate: " + message.replace("3:", '')
             print("Received at: " + str(datetime.datetime.now()))
         print(message)
-        c.send(message.encode('ascii'))
+        #c.send(message.encode('ascii'))
         print("Sent to client at: " + str(datetime.datetime.now()))
         
     c.close()
@@ -49,7 +49,7 @@ def Main():
         ipaddr = socket.gethostbyname(hostname)
         print(ipaddr)
 
-        host = "100.67.127.255"
+        host = "174.77.60.109"
         port = 12345
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind((host, port))
