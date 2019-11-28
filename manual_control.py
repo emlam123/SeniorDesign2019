@@ -256,33 +256,33 @@ class KeyboardControl(object):
         if isinstance(world.player, carla.Vehicle):
             self._control = carla.VehicleControl()
             world.player.set_autopilot(self._autopilot_enabled)
-            '''
-            if from_server == "Slow Down":
-                world.player.set_autopilot(False)
-                args.autopilot=False
-                #for automatic control
-                if args.agent == "Roaming":
-                    agent = RoamingAgent(world.player)
-                    print("Roaming")
-                else:
-                    print("Basic")
-                    agent = BasicAgent(world.player)
-                    spawn_point = world.map.get_spawn_points()[0]
-                    agent.set_destination((spawn_point.location.x,
-                                           spawn_point.location.y,
-                                           spawn_point.location.z))
+            print(self._autopilot_enabled)
+            print(world.player.get_physics_control())
+            if (self._autopilot_enabled==True):
 
-                print('gameloop received slow down')
-                while (from_server=='Slow Down'):  
-                    control = agent.run_step()
-                    control.manual_gear_shift = False
-                    world.player.apply_control(control)
-            else:
-                world.player.set_autopilot(self._autopilot_enabled)
-            '''
+                physics_control = world.player.get_physics_control()
+                front_left_wheel  = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
+                front_right_wheel = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
+                rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
+                rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
 
-            #if (from_server == 'SLOW DOWN'):
-            #    self.sleepy_mode(world,carla.Vehicle)
+                wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
+
+                physics_control.torque_curve = [carla.Vector2D(x=0, y=400), carla.Vector2D(x=1300, y=600)]
+                physics_control.max_rpm = 10000
+                physics_control.moi = 1.0
+                physics_control.damping_rate_full_throttle = 0.0
+                physics_control.use_gear_autobox = False
+                physics_control.gear_switch_time = 0.5
+                physics_control.clutch_strength = 10
+                physics_control.mass = 10000
+                physics_control.drag_coefficient = 0.25
+                physics_control.steering_curve = [carla.Vector2D(x=0, y=1), carla.Vector2D(x=100, y=1), carla.Vector2D(x=300, y=1)]
+                physics_control.wheels = wheels
+
+                # Apply Vehicle Physics Control for the vehicle
+                world.player.apply_physics_control(physics_control)
+               
 
         elif isinstance(world.player, carla.Walker):
             self._control = carla.WalkerControl()
@@ -484,6 +484,7 @@ class HUD(object):
         self._info_text = []
         self._server_clock = pygame.time.Clock()
         self.initial_speed = 0
+        self.old_speed=0
         #print(self.initial_time)
 
     def on_world_tick(self, timestamp):
@@ -526,14 +527,16 @@ class HUD(object):
 
         #send speed to server if difference is greater than 4
         if ((3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))>=10):
-            speed = '%2.0fkm/h' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
+            speed = '%2.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
         else:
-            speed = '0'+'%1.0fkm/h' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
+            speed = '0'+'%1.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
         
-        num = speed.strip('km/h')
-        num = int(num)
+        num = int(speed)
         epsilon = 4+self.initial_speed
         epsilon2 = self.initial_speed-4
+        if self.old_speed==0:
+            self.create_thread(socket,(str(speed).encode()))
+            self.old_speed=-1
         if (num<epsilon2 or num>epsilon):
             self.create_thread(socket,(str(speed).encode()))
             self.initial_speed = num
@@ -587,7 +590,7 @@ class HUD(object):
     def send_info(self,lock,socket,speed):
         #send to server 
         lock.acquire()
-        socket.send(('1:').encode()+speed)
+        socket.send(('1:').encode()+speed+("\n").encode()+str(datetime.datetime.now()).encode())
         print(speed)
         lock.release()
         
@@ -915,47 +918,13 @@ def game_loop(args,socket):
 
         hud = HUD(args.width, args.height,socket)
         world = World(client.get_world(), hud, args.filter, args.rolename)
-        if from_server=='Slow Down':
-            controller = KeyboardControl(world, False)
-            if args.agent == "Roaming":
-                agent = RoamingAgent(world.player)
-            else:
-                agent = BasicAgent(world.player)
-                spawn_point = world.map.get_spawn_points()[0]
-                agent.set_destination((spawn_point.location.x,
-                                       spawn_point.location.y,
-                                       spawn_point.location.z))
-        else:
-            controller = KeyboardControl(world,args.autopilot)
+ 
 
+        controller = KeyboardControl(world,args.autopilot)
 
         clock = pygame.time.Clock()
         while True:
             clock.tick_busy_loop(60)
-            '''
-            print(from_server)
-            if from_server == "Slow Down":
-                #controller = KeyboardControl(world, False)
-                args.autopilot=False
-                #for automatic control
-                if args.agent == "Roaming":
-                    agent = RoamingAgent(world.player)
-                    print("Roaming")
-                else:
-                    print("Basic")
-                    agent = BasicAgent(world.player)
-                    spawn_point = world.map.get_spawn_points()[0]
-                    agent.set_destination((spawn_point.location.x,
-                                           spawn_point.location.y,
-                                           spawn_point.location.z))
-
-                print('gameloop received slow down')
-                while (from_server=='Slow Down'):  
-                    control = agent.run_step()
-                    control.manual_gear_shift = False
-                    world.player.apply_control(control)
-
-            '''
             if controller.parse_events(client, world, clock):
                 return
             # as soon as the server is ready continue!
@@ -966,7 +935,9 @@ def game_loop(args,socket):
             world.render(display)
             pygame.display.flip()
             if (from_server=='Slow Down'):
-                controller = KeyboardControl(world, False)
+                args.autopilot=True
+                controller = KeyboardControl(world,args.autopilot)
+                '''
                 if args.agent == "Roaming":
                     agent = RoamingAgent(world.player)
                     print("Roaming")
@@ -974,8 +945,9 @@ def game_loop(args,socket):
                     agent = BasicAgent(world.player)
                     print("Basic")
 
-                    #spawn_point = world.map.get_spawn_points()[0]
-                    #agent.set_destination((spawn_point.location.x,spawn_point.location.y,spawn_point.location.z)
+                '''
+                #controller.sleepy_mode(world,carla.Vehicle)
+
                 while (from_server=='Slow Down'):
                     if controller.parse_events(client, world, clock):
                         return
@@ -987,10 +959,11 @@ def game_loop(args,socket):
                     world.tick(clock,socket)
                     world.render(display)
                     pygame.display.flip()
+                    '''
                     control = agent.run_step()
                     control.manual_gear_shift = False
                     world.player.apply_control(control)
-
+                    '''
 
     finally:
 
@@ -1079,7 +1052,7 @@ def server_response(socket):
         try:
             response = socket.recv(4096)
             from_server = response.decode()
-            #print(response)
+            print(from_server)
         except:
             continue
 
@@ -1091,9 +1064,12 @@ if __name__ == '__main__':
         t.start()
 
         #Martin's laptop
-        client.connect(('localhost',8080))
-        #client.connect(('192.168.0.13',8080))
-        #client.connect(('192.168.1.40',12345))
+        ip_addr = input("Enter an IP address: ")
+        client.connect((ip_addr,12345))
+        #client.connect(('localhost',8080))
+        #client.connect(('100.67.117.35',8080))
+        #client.connect(('',12345))
+        #client.connect(('100.67.127.255',12345))
         main(client)
         t.join()
     except KeyboardInterrupt:

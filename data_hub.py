@@ -2,6 +2,7 @@ import spidev
 import random
 import socket
 import time
+import datetime
 delay = 1
 channel = 0
 
@@ -24,9 +25,12 @@ def readadc(chan):
 
 
 def Main():
-    host = '100.67.117.35'
+    ip_addr = input("Enter an IP address: ")
 
-    port = 8080
+    host = ip_addr
+    #host = '174.77.60.109'
+
+    port = 12345
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host,port))
@@ -35,13 +39,11 @@ def Main():
     while True:
         force = readadc(channel)
         print("Pressure Value: %d" %force)
+        force = int(force)
         #time.sleep(delay)        
-        message = "2:" + str(force)
+        message = "2:" + str(force) + "\n" + str(datetime.datetime.now().time())
         s.send(message.encode('ascii'))
-
-        data = s.recv(1024)
-
-        print('Received from the server :', str(data.decode('ascii')))
+        time.sleep(.01)
     # close the connection
 
 
