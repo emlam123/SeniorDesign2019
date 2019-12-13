@@ -249,7 +249,7 @@ class World(object):
 
 
 class KeyboardControl(object):
-    def __init__(self, world, start_in_autopilot):
+    def __init__(self, world, start_in_autopilot,socket):
         global from_server
 
         self._autopilot_enabled = start_in_autopilot
@@ -258,6 +258,20 @@ class KeyboardControl(object):
             world.player.set_autopilot(self._autopilot_enabled)
             print(self._autopilot_enabled)
             print(world.player.get_physics_control())
+            if (from_server=="Tire friction is 1.5"):
+                physics_control = world.player.get_physics_control()
+                front_left_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
+                front_right_wheel = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
+                rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=3, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
+                rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
+
+                wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
+                physics_control.wheels=wheels
+                print("Changed tire friction to 3")
+                self.create_thread(socket,physics_control)
+                world.player.apply_physics_control(physics_control)
+
+
             if (self._autopilot_enabled==True):
 
                 physics_control = world.player.get_physics_control()
@@ -269,17 +283,19 @@ class KeyboardControl(object):
                 wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
 
                 physics_control.torque_curve = [carla.Vector2D(x=0, y=400), carla.Vector2D(x=1300, y=600)]
-                physics_control.max_rpm = 10000
+                physics_control.max_rpm = 30000
                 physics_control.moi = 1.0
-                physics_control.damping_rate_full_throttle = 0.0
-                physics_control.use_gear_autobox = False
+                physics_control.damping_rate_full_throttle = 1.0
+                physics_control.use_gear_autobox = True
                 physics_control.gear_switch_time = 0.5
                 physics_control.clutch_strength = 10
                 physics_control.mass = 10000
-                physics_control.drag_coefficient = 0.25
+                physics_control.drag_coefficient = 1.25
                 physics_control.steering_curve = [carla.Vector2D(x=0, y=1), carla.Vector2D(x=100, y=1), carla.Vector2D(x=300, y=1)]
                 physics_control.wheels = wheels
 
+                
+                self.create_thread(socket,physics_control)
                 # Apply Vehicle Physics Control for the vehicle
                 world.player.apply_physics_control(physics_control)
                
@@ -293,34 +309,19 @@ class KeyboardControl(object):
         self._steer_cache = 0.0
         world.hud.notification("Press 'H' or '?' for help.", seconds=4.0)
 
-    def sleepy_mode(self,world,vehicle):
-        print("IN SLEEPY MODE")
-        # Create Wheels Physics Control
-        front_left_wheel  = carla.WheelPhysicsControl(tire_friction=4.5, damping_rate=1.0, max_steer_angle=70.0, radius=30.0)
-        front_right_wheel = carla.WheelPhysicsControl(tire_friction=2.5, damping_rate=1.5, max_steer_angle=70.0, radius=25.0)
-        rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=1.0, damping_rate=0.2, max_steer_angle=0.0,  radius=15.0)
-        rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.3, max_steer_angle=0.0,  radius=20.0)
+    def create_thread(self,socket,physics_control):
+        lock = Lock()
+        t=threading.Thread(target=self.send_info,args=(lock,socket,physics_control,))
+        t.start()
+        t.join()
+        
 
-        wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
-
-        # Change Vehicle Physics Control parameters of the vehicle
-        physics_control = vehicle.get_physics_control()
-
-        physics_control.torque_curve = [carla.Vector2D(x=0, y=400), carla.Vector2D(x=1300, y=600)]
-        physics_control.max_rpm = 10000
-        physics_control.moi = 1.0
-        physics_control.damping_rate_full_throttle = 0.0
-        physics_control.use_gear_autobox = True
-        physics_control.gear_switch_time = 0.5
-        physics_control.clutch_strength = 10
-        physics_control.mass = 10000
-        physics_control.drag_coefficient = 0.25
-        physics_control.steering_curve = [carla.Vector2D(x=0, y=1), carla.Vector2D(x=100, y=1), carla.Vector2D(x=300, y=1)]
-        physics_control.wheels = wheels
-
-        # Apply Vehicle Physics Control for the vehicle
-        vehicle.apply_physics_control(physics_control)
-
+    def send_info(self,lock,socket,physics_control):
+        #send to server 
+        lock.acquire()
+        socket.send(('3:').encode()+str(physics_control).encode()+('\n').encode()+str(datetime.datetime.now()).encode())
+        print(physics_control)
+        lock.release()
 
     def parse_events(self, client, world, clock):
         for event in pygame.event.get():
@@ -535,7 +536,7 @@ class HUD(object):
         epsilon = 4+self.initial_speed
         epsilon2 = self.initial_speed-4
         if self.old_speed==0:
-            self.create_thread(socket,(str(speed).encode()))
+            self.create_thread(socket,(str(self.old_speed).encode()))
             self.old_speed=-1
         if (num<epsilon2 or num>epsilon):
             self.create_thread(socket,(str(speed).encode()))
@@ -920,7 +921,7 @@ def game_loop(args,socket):
         world = World(client.get_world(), hud, args.filter, args.rolename)
  
 
-        controller = KeyboardControl(world,args.autopilot)
+        controller = KeyboardControl(world,args.autopilot,socket)
 
         clock = pygame.time.Clock()
         while True:
@@ -936,7 +937,7 @@ def game_loop(args,socket):
             pygame.display.flip()
             if (from_server=='Slow Down'):
                 args.autopilot=True
-                controller = KeyboardControl(world,args.autopilot)
+                controller = KeyboardControl(world,args.autopilot,socket)
                 '''
                 if args.agent == "Roaming":
                     agent = RoamingAgent(world.player)
@@ -964,6 +965,7 @@ def game_loop(args,socket):
                     control.manual_gear_shift = False
                     world.player.apply_control(control)
                     '''
+            controller = KeyboardControl(world,False,socket)
 
     finally:
 
@@ -1065,8 +1067,8 @@ if __name__ == '__main__':
 
         #Martin's laptop
         ip_addr = input("Enter an IP address: ")
-        client.connect((ip_addr,12345))
-        #client.connect(('localhost',8080))
+        #client.connect((ip_addr,12345))
+        client.connect((ip_addr,8080))
         #client.connect(('100.67.117.35',8080))
         #client.connect(('',12345))
         #client.connect(('100.67.127.255',12345))

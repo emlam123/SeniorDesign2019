@@ -42,6 +42,8 @@ def threaded(c):
                 c.send(("Slow Down").encode())
             elif (speed>=60):
                 c.send(("Thats fast").encode())
+            else:
+                c.send(('').encode())
 
             if speed_pointer == 29:
                 print("Writing to CSV file")
@@ -90,6 +92,23 @@ def threaded(c):
                 force_pointer = 0
             force_queue[force_pointer] = [message[0],str(datetime.datetime.now().time()),message[1]]
             force_pointer = force_pointer + 1
+
+        if message[0]=="3":
+            physics = message.replace("3:",'')
+            physics = physics.split("\n")
+            print(physics[0])
+            car_data = physics[0].split(',')
+            print (car_data)
+            print('')
+            print (car_data[23])
+            tire_friction=car_data[23].split('=')
+            tire_friction=tire_friction[2]
+            print(tire_friction)
+            if (float(tire_friction)==1.5):
+                print('tire friction is 1.5')
+                c.send(("Tire friction is 1.5").encode())
+
+
 
         #if message[0] == "3":
          #   message = "Heart Rate Sensor Data Received heart rate(BPM) rate: " + message.replace("3:", '')
