@@ -4,9 +4,69 @@ from _thread import *
 import threading
 import datetime
 import csv
+from multiprocessing import Lock
 
 print_lock = threading.Lock()
+carla_lock = Lock()
 
+def speed_thread(c):
+
+    speed_queue = [None] * 30
+
+    speed_pointer = 0
+
+    speed_sum = 0
+    while True:
+    
+        data = c.recv(1024)
+        if not data:
+            print('Bye')
+            sys.exit(0)
+        message = str(data.decode('ascii'))
+        if message[0]=="1":
+            print(message)
+            message = message.replace('1:','')
+            print("Received at: " + str(datetime.datetime.now()))
+            message = message.split("\n") ## message[0] refers to speed 2 is time
+            speed = int(message[0])
+            print(speed)
+                    
+                    #if (speed<=10):
+                    #    c.send(("None").encode())
+            carla_lock.acquire()
+            if (speed>10 and speed<60):
+                c.send(("Slow Down").encode())
+            elif (speed>=60):
+                c.send(("Thats fast").encode())
+            elif (speed<=10):
+                c.send(("None").encode())
+                print('sent none')
+            carla_lock.release()
+
+            if speed_pointer == 29:
+                print("Writing to CSV file")
+                speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]] #[0] - msg string, [1] - speed, [2] - date 
+                        
+                with open('speed_rate.csv', 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    print("Writing to speed_rate.csv")
+                    for data in speed_queue:
+                        speed_sum = speed_sum + int(data[0])
+                        writer.writerow(data)
+                                
+                            
+
+                with open('average_speed.csv', 'a', newline='') as f:
+                    print("Writing averages")
+                    hello = [float(speed_sum/30),str(datetime.datetime.now().time())]
+                    writer = csv.writer(f)
+                    writer.writerow(hello)
+                speed_sum = 0
+                speed_pointer = 0
+            speed_queue[speed_pointer] = [message[0],str(datetime.datetime.now().time()),message[1]]
+            speed_pointer += 1
+        else:
+            continue
 
 def threaded(c):
     heartrate_queue = [None] * 30
@@ -30,6 +90,8 @@ def threaded(c):
         
         # Speed Sensor is flag 1
         if message[0] == "1":
+            #start_new_thread(speed_thread,(c,))
+            
             message = message.replace('1:','')
             print("Received at: " + str(datetime.datetime.now()))
             message = message.split("\n") ## message[0] refers to speed 2 is time
@@ -38,16 +100,39 @@ def threaded(c):
             
             #if (speed<=10):
             #    c.send(("None").encode())
+            #carla_lock.acquire()
             if (speed>10 and speed<60):
                 c.send(("Slow Down").encode())
+                print('slow')
             elif (speed>=60):
                 c.send(("Thats fast").encode())
-            else:
-                c.send(('').encode())
+            elif (speed<=10):
+                c.send(("None").encode())
+                print('sent none')
+            #carla_lock.release()
+
+            physics = message[1]
+
+            car_data = physics.split(',')
+            #print (car_data)
+            if car_data[0]!="None":
+                #print('')
+                #print (car_data[27])
+                tire_friction=car_data[27].split('=')
+                tire_friction=tire_friction[2]
+                print(tire_friction)
+
+                #carla_lock.acquire()
+                if (float(tire_friction)==1.5):
+                    #print('tire friction is 1.5')
+                    c.send(("Tire friction is 1.5").encode())
+
+                #carla_lock.release()
+
 
             if speed_pointer == 29:
                 print("Writing to CSV file")
-                speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]] #[0] - msg string, [1] - speed, [2] - date 
+                speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()), message[2]] #[0] - msg string, [1] - speed, [2] - date 
                 
                 with open('speed_rate.csv', 'a', newline='') as f:
                     writer = csv.writer(f)
@@ -65,17 +150,17 @@ def threaded(c):
                     writer.writerow(hello)
                 speed_sum = 0
                 speed_pointer = 0
-            speed_queue[speed_pointer] = [message[0],str(datetime.datetime.now().time()),message[1]]
+            speed_queue[speed_pointer] = [message[0],str(datetime.datetime.now().time()),message[2]]
             speed_pointer += 1
             ##print("speed pointer did pass and it was : " + str(speed_pointer))
-
+            
         # Force Sensor is flag 2
-        if message[0] == "2":
+        elif message[0] == "2":
             message = message.replace("2:", '')
             message = message.split("\n")
-            print("Force Sensor Data Received at: " + str(datetime.datetime.now().time()))
+            #print("Force Sensor Data Received at: " + str(datetime.datetime.now().time()))
             if force_pointer == 29:
-                print("Writing to CSV file")
+                #print("Writing to CSV file")
                 force_queue[force_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]]
 
                 with open('force_rate.csv', 'a', newline='') as f:
@@ -93,22 +178,25 @@ def threaded(c):
             force_queue[force_pointer] = [message[0],str(datetime.datetime.now().time()),message[1]]
             force_pointer = force_pointer + 1
 
-        if message[0]=="3":
+        '''
+        elif message[0]=="3":
             physics = message.replace("3:",'')
             physics = physics.split("\n")
-            print(physics[0])
+            #print(physics[0])
             car_data = physics[0].split(',')
-            print (car_data)
-            print('')
-            print (car_data[23])
-            tire_friction=car_data[23].split('=')
+            #print (car_data)
+            #print('')
+            print (car_data[27])
+            tire_friction=car_data[27].split('=')
             tire_friction=tire_friction[2]
             print(tire_friction)
+            carla_lock.acquire()
             if (float(tire_friction)==1.5):
-                print('tire friction is 1.5')
+                #print('tire friction is 1.5')
                 c.send(("Tire friction is 1.5").encode())
 
-
+            carla_lock.release()
+        '''
 
         #if message[0] == "3":
          #   message = "Heart Rate Sensor Data Received heart rate(BPM) rate: " + message.replace("3:", '')

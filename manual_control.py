@@ -67,8 +67,8 @@ except IndexError:
     pass
 
 
-from roaming_agent import RoamingAgent
-from basic_agent import BasicAgent
+#from roaming_agent import RoamingAgent
+#from basic_agent import BasicAgent
 
 
 # ==============================================================================
@@ -256,49 +256,11 @@ class KeyboardControl(object):
         if isinstance(world.player, carla.Vehicle):
             self._control = carla.VehicleControl()
             world.player.set_autopilot(self._autopilot_enabled)
-            print(self._autopilot_enabled)
-            print(world.player.get_physics_control())
-            if (from_server=="Tire friction is 1.5"):
-                physics_control = world.player.get_physics_control()
-                front_left_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
-                front_right_wheel = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
-                rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=3, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
-                rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
-
-                wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
-                physics_control.wheels=wheels
-                print("Changed tire friction to 3")
-                self.create_thread(socket,physics_control)
-                world.player.apply_physics_control(physics_control)
-
-
-            if (self._autopilot_enabled==True):
-
-                physics_control = world.player.get_physics_control()
-                front_left_wheel  = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
-                front_right_wheel = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
-                rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
-                rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=1.5, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
-
-                wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
-
-                physics_control.torque_curve = [carla.Vector2D(x=0, y=400), carla.Vector2D(x=1300, y=600)]
-                physics_control.max_rpm = 30000
-                physics_control.moi = 1.0
-                physics_control.damping_rate_full_throttle = 1.0
-                physics_control.use_gear_autobox = True
-                physics_control.gear_switch_time = 0.5
-                physics_control.clutch_strength = 10
-                physics_control.mass = 10000
-                physics_control.drag_coefficient = 1.25
-                physics_control.steering_curve = [carla.Vector2D(x=0, y=1), carla.Vector2D(x=100, y=1), carla.Vector2D(x=300, y=1)]
-                physics_control.wheels = wheels
-
-                
-                self.create_thread(socket,physics_control)
-                # Apply Vehicle Physics Control for the vehicle
-                world.player.apply_physics_control(physics_control)
-               
+            
+            #check initial tire friction
+            #physics_control = world.player.get_physics_control()
+            #print(physics_control)
+            
 
         elif isinstance(world.player, carla.Walker):
             self._control = carla.WalkerControl()
@@ -309,30 +271,10 @@ class KeyboardControl(object):
         self._steer_cache = 0.0
         world.hud.notification("Press 'H' or '?' for help.", seconds=4.0)
 
-    def create_thread(self,socket,physics_control):
-        lock = Lock()
-        t=threading.Thread(target=self.send_info,args=(lock,socket,physics_control,))
-        t.start()
-        t.join()
-        
-
-    def send_info(self,lock,socket,physics_control):
-        #send to server 
-        lock.acquire()
-        socket.send(('3:').encode()+str(physics_control).encode()+('\n').encode()+str(datetime.datetime.now()).encode())
-        print(physics_control)
-        lock.release()
 
     def parse_events(self, client, world, clock):
         for event in pygame.event.get():
-            '''
-            while True:
-                if (server_response == 'SLOW DOWN'):
-                    self._autopilot_enabled = True
-                    self.sleepy_mode(world,carla.Vehicle)
-                else:
-                    break
-            '''
+           
             if event.type == pygame.QUIT:
                 return True
             elif event.type == pygame.KEYUP:
@@ -407,15 +349,7 @@ class KeyboardControl(object):
                         self._autopilot_enabled = not self._autopilot_enabled
                         world.player.set_autopilot(self._autopilot_enabled)
                         world.hud.notification('Autopilot %s' % ('On' if self._autopilot_enabled else 'Off'))
-        '''
-        if not self._autopilot_enabled:
-            if isinstance(self._control, carla.VehicleControl):
-                self._parse_vehicle_keys(pygame.key.get_pressed(), clock.get_time())
-                self._control.reverse = self._control.gear < 0
-            elif isinstance(self._control, carla.WalkerControl):
-                self._parse_walker_keys(pygame.key.get_pressed(), clock.get_time())
-            world.player.apply_control(self._control)
-        '''
+       
         if not self._autopilot_enabled:
             if isinstance(self._control, carla.VehicleControl):
                 keys = pygame.key.get_pressed()
@@ -486,7 +420,9 @@ class HUD(object):
         self._server_clock = pygame.time.Clock()
         self.initial_speed = 0
         self.old_speed=0
-        #print(self.initial_time)
+
+
+
 
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
@@ -526,23 +462,6 @@ class HUD(object):
             'Height:  % 18.0f m' % t.location.z,
             '']
 
-        #send speed to server if difference is greater than 4
-        if ((3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))>=10):
-            speed = '%2.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
-        else:
-            speed = '0'+'%1.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
-        
-        num = int(speed)
-        epsilon = 4+self.initial_speed
-        epsilon2 = self.initial_speed-4
-        if self.old_speed==0:
-            self.create_thread(socket,(str(self.old_speed).encode()))
-            self.old_speed=-1
-        if (num<epsilon2 or num>epsilon):
-            self.create_thread(socket,(str(speed).encode()))
-            self.initial_speed = num
-            print("new speed: %d" %(self.initial_speed))
-        
 
         if isinstance(c, carla.VehicleControl):
             self._info_text += [
@@ -559,8 +478,25 @@ class HUD(object):
                 ('Jump:', c.jump)]
 
 
+        #display notification from server
         self._info_text+=['','NOTIFICATION HERE:','']
         self._info_text.append('%s' %(from_server))
+
+
+        #to send speed
+        if ((3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))>=10):
+            speed = '%2.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
+        else:
+            speed = '0'+'%1.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
+        
+        num = int(speed)
+        epsilon = 4+self.initial_speed
+        epsilon2 = self.initial_speed-4
+      
+        if (num<epsilon2 or num>epsilon):
+            self.check_response(world,socket,speed)
+            self.initial_speed = num
+
 
         self._info_text += [
             '',
@@ -581,18 +517,41 @@ class HUD(object):
       
         
 
-    def create_thread(self,socket,speed):
+    def check_response(self,world,socket,speed):
+        global from_server
+
+        if (from_server=="Slow Down"):
+
+            physics_control = world.player.get_physics_control()
+            front_left_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
+            front_right_wheel = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
+            rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=3, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
+            rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
+
+            wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
+            
+            physics_control.wheels = wheels
+
+            print ('changed tire friction to 3')
+            self.create_thread(socket,speed,physics_control)
+            #print(physics_control)
+
+        else:
+            self.create_thread(socket,speed,None)
+
+
+
+    def create_thread(self,socket,speed,physics):
         lock = Lock()
-        t=threading.Thread(target=self.send_info,args=(lock,socket,speed,))
+        t=threading.Thread(target=self.send_info,args=(lock,socket,speed,physics))
         t.start()
         t.join()
         
 
-    def send_info(self,lock,socket,speed):
+    def send_info(self,lock,socket,speed,physics):
         #send to server 
         lock.acquire()
-        socket.send(('1:').encode()+speed+("\n").encode()+str(datetime.datetime.now()).encode())
-        print(speed)
+        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
         lock.release()
         
 
@@ -935,37 +894,21 @@ def game_loop(args,socket):
             world.tick(clock,socket)
             world.render(display)
             pygame.display.flip()
-            if (from_server=='Slow Down'):
-                args.autopilot=True
-                controller = KeyboardControl(world,args.autopilot,socket)
-                '''
-                if args.agent == "Roaming":
-                    agent = RoamingAgent(world.player)
-                    print("Roaming")
-                else:
-                    agent = BasicAgent(world.player)
-                    print("Basic")
+            # if (from_server=='Slow Down'):
+               
+            #     while (from_server=='Slow Down'):
+            #         if controller.parse_events(client, world, clock):
+            #             return
 
-                '''
-                #controller.sleepy_mode(world,carla.Vehicle)
+            #         # as soon as the server is ready continue!
+            #         if not world.world.wait_for_tick(10.0):
+            #             continue
 
-                while (from_server=='Slow Down'):
-                    if controller.parse_events(client, world, clock):
-                        return
-
-                    # as soon as the server is ready continue!
-                    if not world.world.wait_for_tick(10.0):
-                        continue
-
-                    world.tick(clock,socket)
-                    world.render(display)
-                    pygame.display.flip()
-                    '''
-                    control = agent.run_step()
-                    control.manual_gear_shift = False
-                    world.player.apply_control(control)
-                    '''
-            controller = KeyboardControl(world,False,socket)
+            #         world.tick(clock,socket)
+            #         world.render(display)
+            #         pygame.display.flip()
+                    
+            # controller = KeyboardControl(world,False,socket)
 
     finally:
 
@@ -1054,7 +997,7 @@ def server_response(socket):
         try:
             response = socket.recv(4096)
             from_server = response.decode()
-            print(from_server)
+            #print("in server response: "+from_server)
         except:
             continue
 
@@ -1067,8 +1010,8 @@ if __name__ == '__main__':
 
         #Martin's laptop
         ip_addr = input("Enter an IP address: ")
-        #client.connect((ip_addr,12345))
-        client.connect((ip_addr,8080))
+        client.connect((ip_addr,12345))
+        #client.connect((ip_addr,8080))
         #client.connect(('100.67.117.35',8080))
         #client.connect(('',12345))
         #client.connect(('100.67.127.255',12345))
