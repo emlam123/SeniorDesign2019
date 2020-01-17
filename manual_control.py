@@ -80,6 +80,8 @@ from multiprocessing import Process,Lock
 import carla
 import threading
 import concurrent.futures
+from playsound import playsound
+import winsound
 
 from carla import ColorConverter as cc
 from time import sleep
@@ -420,6 +422,7 @@ class HUD(object):
         self._server_clock = pygame.time.Clock()
         self.initial_speed = 0
         self.old_speed=0
+        self.music=False
 
 
 
@@ -521,6 +524,7 @@ class HUD(object):
         global from_server
 
         if (from_server=="Slow Down"):
+            #playsound('liszt.mp3')
 
             physics_control = world.player.get_physics_control()
             front_left_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
@@ -547,6 +551,20 @@ class HUD(object):
         t.start()
         t.join()
         
+        music=threading.Thread(target=self.play_liszt,args=())
+        music.start()
+        music.join()
+        
+
+    def play_liszt(self):
+        #winsound.PlaySound('liszt.mp3',winsound.SND_ASYNC)      
+        # self.music=True
+        # playsound("liszt.mp3",False)
+        # self.music=False
+        if pygame.mixer.music.get_busy()==False:
+            pygame.mixer.init()
+            pygame.mixer.music.load("liszt.mp3")
+            pygame.mixer.music.play()
 
     def send_info(self,lock,socket,speed,physics):
         #send to server 
