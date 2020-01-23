@@ -10,33 +10,18 @@ from statistics import *
 print_lock = threading.Lock()
 carla_lock = Lock()
 
-def force_algorithm_thread(force_buffer):
-    stats_list = []
-    with open('force_rate.csv', 'a', newline='') as f:
-        writer = csv.writer(f)
-        for data in force_buffer:
-            writer.writerow(data)
-            stats_list.append(int(data[0]))
-
-    with open('average_force.csv', 'a', newline='') as f:
-        hello = [mean(stats_list), stdev(stats_list), variance(stats_list),str(datetime.datetime.now().time())]
+def algorithm_thread(filename, buffer):
+    with open(filename, 'a', newline='') as f:
+        hello = [mean(buffer), stdev(buffer), variance(buffer),str(datetime.datetime.now().time())]
         writer = csv.writer(f)
         writer.writerow(hello)
 
-def speed_algorithm_thread(force_buffer):
-    pass
-    stats_list = []
-    with open('force_rate.csv', 'a', newline='') as f:
+def writing_thread(filename, buffer):
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        for data in force_buffer:
+        for data in buffer:
+            print(str(datetime.datetime.now().time()))
             writer.writerow(data)
-            stats_list.append(int(data[0]))
-
-    with open('average_force.csv', 'a', newline='') as f:
-        hello = [mean(stats_list), stdev(stats_list), variance(stats_list), str(datetime.datetime.now().time())]
-        writer = csv.writer(f)
-        writer.writerow(hello)
-
 
 def speed_thread(c):
     speed_queue = [None] * 30
@@ -100,6 +85,9 @@ def threaded(c):
     heartrate_queue = [None] * 30
     speed_queue = [None] * 30
     force_queue = [None] * 30
+
+    speedvals = [None] * 30
+    forcevals = [None] * 30
 
     heartrate_pointer = 0
     speed_pointer = 0
@@ -187,10 +175,13 @@ def threaded(c):
             if force_pointer == 29:
                 # print("Writing to CSV file")
                 force_queue[force_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]]
+                forcevals[force_pointer] = int(message[0])
                 force_buffer = force_queue.copy()
-                start_new_thread(force_algorithm_thread, (force_buffer,))
+                start_new_thread(algorithm_thread, ("average_force.csv", forcevals))
+                start_new_thread(writing_thread, ("force_rate.csv", force_buffer))
                 force_pointer = 0
             force_queue[force_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]]
+            forcevals[force_pointer] = int(message[0])
             force_pointer = force_pointer + 1
 
         '''
