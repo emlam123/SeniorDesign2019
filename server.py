@@ -109,22 +109,22 @@ def threaded(c):
             # start_new_thread(speed_thread,(c,))
 
             message = message.replace('1:', '')
-            print("Received at: " + str(datetime.datetime.now()))
+            ##print("Received at: " + str(datetime.datetime.now()))
             message = message.split("\n")  ## message[0] refers to speed 2 is time
             speed = int(message[0])
-            print(speed)
+            ##print(speed)
 
             # if (speed<=10):
             #    c.send(("None").encode())
             # carla_lock.acquire()
             if (speed > 10 and speed < 60):
                 c.send(("Slow Down").encode())
-                print('slow')
+                ##print('slow')
             elif (speed >= 60):
                 c.send(("Thats fast").encode())
             elif (speed <= 10):
                 c.send(("None").encode())
-                print('sent none')
+                ##print('sent none')
             # carla_lock.release()
 
             physics = message[1]
@@ -136,7 +136,7 @@ def threaded(c):
                 # print (car_data[27])
                 tire_friction = car_data[27].split('=')
                 tire_friction = tire_friction[2]
-                print(tire_friction)
+                ##print(tire_friction)
 
                 # carla_lock.acquire()
                 if (float(tire_friction) == 1.5):
@@ -146,24 +146,16 @@ def threaded(c):
                 # carla_lock.release()
 
             if speed_pointer == 29:
-                print("Writing to CSV file")
+                ##print("Writing to CSV file")
                 speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()),
                                               message[2]]  # [0] - msg string, [1] - speed, [2] - date
-
-                with open('speed_rate.csv', 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    print("Writing to speed_rate.csv")
-                    for data in speed_queue:
-                        speed_sum = speed_sum + int(data[0])
-                        writer.writerow(data)
-
-                with open('average_speed.csv', 'a', newline='') as f:
-                    print("Writing averages")
-                    hello = [float(speed_sum / 30), str(datetime.datetime.now().time())]
-                    writer = csv.writer(f)
-                    writer.writerow(hello)
+                speedvals[speed_pointer] = int(message[0])
+                speed_buffer = speed_queue.copy()
+                start_new_thread(algorithm_thread, ("average_speed.csv", speedvals))
+                start_new_thread(writing_thread, ("speed_rate.csv", speed_buffer))
                 speed_pointer = 0
             speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()), message[2]]
+            speedvals[speed_pointer] = int(message[0])
             speed_pointer += 1
             ##print("speed pointer did pass and it was : " + str(speed_pointer))
 
