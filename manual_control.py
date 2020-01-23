@@ -75,15 +75,22 @@ except IndexError:
 # -- imports -------------------------------------------------------------------
 # ==============================================================================
 
+
+sys.path.append(glob.glob('/Users/Emily/Anaconda3/CARLA_0.9.5/PythonAPI/carla/dist/carla-*%d.%d-%s.egg' % (
+        sys.version_info.major,
+        sys.version_info.minor,
+        'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
+
 import socket
 from multiprocessing import Process,Lock
 import carla
+
+
 import threading
 import concurrent.futures
-from playsound import playsound
-import winsound
+import math
 
-from carla import ColorConverter as cc
+#from carla import ColorConverter as cc
 from time import sleep
 import argparse
 import collections
@@ -94,7 +101,7 @@ import random
 import re
 import weakref
 
-#global t
+tailgate_distance=None
 
 try:
     import pygame
@@ -127,6 +134,9 @@ try:
     from pygame.locals import K_w
     from pygame.locals import K_MINUS
     from pygame.locals import K_EQUALS
+
+    from pygame.locals import K_v
+
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -182,6 +192,64 @@ class World(object):
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.recording_start = 0
+        self.dummies=[]
+
+    def tailgate(self):
+        global tailgate_distance
+
+        player_xy = self.player.get_location()
+        
+        location=(player_xy.x,player_xy.y,player_xy.z)
+        
+        for car in self.dummies:
+            dummy_xy = car.get_location()
+            dummy_location=(dummy_xy.x,dummy_xy.y,dummy_xy.z)
+            distance = math.sqrt(sum([(a-b)**2 for a, b in zip(location,dummy_location)]))
+            
+            if distance<350:
+                if tailgate_distance!=distance:
+                    tailgate_distance=distance
+
+                print("TOO CLOSE")
+            else:
+                tailgate_distance=None
+
+                
+
+    def dummy_vehicle(self):
+        # Get a random blueprint.
+        blueprint = random.choice(self.world.get_blueprint_library().filter("model3"))
+        blueprint.set_attribute('role_name', self.actor_role_name)
+        if blueprint.has_attribute('color'):
+            color = random.choice(blueprint.get_attribute('color').recommended_values)
+            blueprint.set_attribute('color', color)
+        # Spawn the players
+        
+        #spawn_point = self.player.get_transform()
+        #spawn_point.location.z += 2.0
+        #spawn_point.rotation.roll = 0.0
+        #spawn_point.rotation.pitch = 0.0
+        
+        spawn_points = self.map.get_spawn_points()
+        spawn_point = random.choice(spawn_points)
+        new_actor = self.world.try_spawn_actor(blueprint, spawn_point)
+        self.dummies.append(new_actor)
+
+        #if isinstance(new_actor, carla.Vehicle):
+        #    control = carla.VehicleControl()
+        new_actor.set_autopilot(True)
+
+        while new_actor is None:
+            spawn_points = self.map.get_spawn_points()
+            spawn_point = random.choice(spawn_points) #if spawn_points else carla.Transform()
+            new_actor = self.world.try_spawn_actor(blueprint, spawn_point)
+            self.dummies.append(new_actor)
+
+            #if isinstance(new_actor, carla.Vehicle):
+            #    control = carla.VehicleControl()
+            new_actor.set_autopilot(True)
+
+
 
     def restart(self):
         # Keep same camera config if the camera manager exists.
@@ -223,6 +291,7 @@ class World(object):
         self.player.get_world().set_weather(preset[0])
 
     def tick(self, clock,socket):
+        self.tailgate()
         self.hud.tick(self, clock,socket)
 
     def render(self, display):
@@ -242,6 +311,10 @@ class World(object):
             self.gnss_sensor.sensor,
             self.player]
         for actor in actors:
+            if actor is not None:
+                actor.destroy()
+
+        for actor in self.dummies:
             if actor is not None:
                 actor.destroy()
 
@@ -282,6 +355,11 @@ class KeyboardControl(object):
             elif event.type == pygame.KEYUP:
                 if self._is_quit_shortcut(event.key):
                     return True
+
+                elif event.key == K_v:
+                    #spawn more dummy vehicles
+                    world.dummy_vehicle()
+
                 elif event.key == K_BACKSPACE:
                     world.restart()
                 elif event.key == K_F1:
@@ -557,19 +635,17 @@ class HUD(object):
         
 
     def play_liszt(self):
-        #winsound.PlaySound('liszt.mp3',winsound.SND_ASYNC)      
-        # self.music=True
-        # playsound("liszt.mp3",False)
-        # self.music=False
         if pygame.mixer.music.get_busy()==False:
             pygame.mixer.init()
             pygame.mixer.music.load("liszt.mp3")
             pygame.mixer.music.play()
 
     def send_info(self,lock,socket,speed,physics):
+        global tailgate_distance
+
         #send to server 
         lock.acquire()
-        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
+        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(tailgate_distance).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
         lock.release()
         
 
@@ -790,12 +866,12 @@ class CameraManager(object):
             carla.Transform(carla.Location(x=1.6, z=1.7))]
         self.transform_index = 1
         self.sensors = [
-            ['sensor.camera.rgb', cc.Raw, 'Camera RGB'],
-            ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)'],
-            ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)'],
-            ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)'],
-            ['sensor.camera.semantic_segmentation', cc.Raw, 'Camera Semantic Segmentation (Raw)'],
-            ['sensor.camera.semantic_segmentation', cc.CityScapesPalette,
+            ['sensor.camera.rgb', carla.ColorConverter.Raw, 'Camera RGB'],
+            ['sensor.camera.depth', carla.ColorConverter.Raw, 'Camera Depth (Raw)'],
+            ['sensor.camera.depth', carla.ColorConverter.Depth, 'Camera Depth (Gray Scale)'],
+            ['sensor.camera.depth', carla.ColorConverter.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)'],
+            ['sensor.camera.semantic_segmentation', carla.ColorConverter.Raw, 'Camera Semantic Segmentation (Raw)'],
+            ['sensor.camera.semantic_segmentation', carla.ColorConverter.CityScapesPalette,
                 'Camera Semantic Segmentation (CityScapes Palette)'],
             ['sensor.lidar.ray_cast', None, 'Lidar (Ray-Cast)']]
         world = self._parent.get_world()
@@ -887,6 +963,7 @@ def game_loop(args,socket):
     global from_server
 
     try:
+        print(carla)
         client = carla.Client(args.host, args.port)
         client.set_timeout(4.0)
 
