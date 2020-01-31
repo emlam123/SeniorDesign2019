@@ -102,7 +102,6 @@ import re
 import weakref
 
 tailgate_distance=None
-
 try:
     import pygame
     from pygame.locals import KMOD_CTRL
@@ -194,6 +193,8 @@ class World(object):
         self.recording_start = 0
         self.dummies=[]
 
+        self.spawn_vehicle()
+
     def tailgate(self):
         global tailgate_distance
 
@@ -206,7 +207,7 @@ class World(object):
             dummy_location=(dummy_xy.x,dummy_xy.y,dummy_xy.z)
             distance = math.sqrt(sum([(a-b)**2 for a, b in zip(location,dummy_location)]))
             
-            if distance<350:
+            if distance<6:
                 if tailgate_distance!=distance:
                     tailgate_distance=distance
 
@@ -225,38 +226,79 @@ class World(object):
             blueprint.set_attribute('color', color)
         # Spawn the players
         
-        #spawn_point = self.player.get_transform()
-        #spawn_point.location.z += 2.0
-        #spawn_point.rotation.roll = 0.0
-        #spawn_point.rotation.pitch = 0.0
-        
         spawn_points = self.map.get_spawn_points()
         spawn_point = random.choice(spawn_points)
+        print(spawn_point)
         new_actor = self.world.try_spawn_actor(blueprint, spawn_point)
         self.dummies.append(new_actor)
 
-        #if isinstance(new_actor, carla.Vehicle):
-        #    control = carla.VehicleControl()
         new_actor.set_autopilot(True)
 
         while new_actor is None:
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) #if spawn_points else carla.Transform()
+            print(spawn_point)
             new_actor = self.world.try_spawn_actor(blueprint, spawn_point)
             self.dummies.append(new_actor)
 
-            #if isinstance(new_actor, carla.Vehicle):
-            #    control = carla.VehicleControl()
             new_actor.set_autopilot(True)
 
+    def spawn_vehicle(self):
+        # Get a random blueprint. Spawn 5 cars.
+        cars=[]
+        for i in range(2):
+            blueprint = random.choice(self.world.get_blueprint_library().filter("tesla"))
+            cars.append(blueprint)
+            blueprint.set_attribute('role_name', self.actor_role_name)
+            if blueprint.has_attribute('color'):
+                color = random.choice(blueprint.get_attribute('color').recommended_values)
+                blueprint.set_attribute('color', color)
+        # Spawn the players
+        loc=[]
 
+        spawn_points = self.map.get_spawn_points()
+        spawn_point = random.choice(spawn_points)
+        print(spawn_point)
+        spawn_point.location.x=21.715
+        spawn_point.location.y=139.518
+        spawn_point.location.z=2.5
+        spawn_point.rotation.pitch=0
+        spawn_point.rotation.yaw=0.234757
+        spawn_point.rotation.roll=0
+        loc.append(spawn_point)
+        spawn_points = self.map.get_spawn_points()
+        spawn_point = random.choice(spawn_points)
+        print(spawn_point)
+        spawn_point.location.x=25.715
+        spawn_point.location.y=146.5
+        spawn_point.location.z=2.5
+        spawn_point.rotation.pitch=0
+        spawn_point.rotation.yaw=0.234757
+        spawn_point.rotation.roll=0
+        loc.append(spawn_point)
+
+        new_actor = self.world.try_spawn_actor(cars[0], loc[0])
+        self.dummies.append(new_actor)
+        new_actor1 = self.world.try_spawn_actor(cars[1], loc[1])
+        self.dummies.append(new_actor1)
+        new_actor1.set_autopilot(True)
+        new_actor.set_autopilot(True)
+
+        while new_actor is None:
+            spawn_points = self.map.get_spawn_points()
+            spawn_point = random.choice(spawn_points) #if spawn_points else carla.Transform()
+            print(spawn_point)
+            new_actor = self.world.try_spawn_actor(blueprint, spawn_point)
+            self.dummies.append(new_actor)
+
+            new_actor.set_autopilot(True)    
 
     def restart(self):
         # Keep same camera config if the camera manager exists.
         cam_index = self.camera_manager.index if self.camera_manager is not None else 0
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
         # Get a random blueprint.
-        blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
+        blueprint = random.choice(self.world.get_blueprint_library().filter('tesla'))
         blueprint.set_attribute('role_name', self.actor_role_name)
         if blueprint.has_attribute('color'):
             color = random.choice(blueprint.get_attribute('color').recommended_values)
@@ -272,7 +314,16 @@ class World(object):
         while self.player is None:
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
+            spawn_point.location.x=21.7007
+            spawn_point.location.y=143.018
+            spawn_point.location.z=2.5
+            spawn_point.rotation.pitch=0
+            spawn_point.rotation.yaw=0.234757
+            spawn_point.rotation.roll=0
+
+            print(spawn_point)
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
+            #self.spawn_vehicle()
         # Set up the sensors.
         self.collision_sensor = CollisionSensor(self.player, self.hud)
         self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
@@ -283,6 +334,7 @@ class World(object):
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
 
+
     def next_weather(self, reverse=False):
         self._weather_index += -1 if reverse else 1
         self._weather_index %= len(self._weather_presets)
@@ -291,7 +343,7 @@ class World(object):
         self.player.get_world().set_weather(preset[0])
 
     def tick(self, clock,socket):
-        self.tailgate()
+        #self.tailgate()
         self.hud.tick(self, clock,socket)
 
     def render(self, display):
@@ -501,9 +553,28 @@ class HUD(object):
         self.initial_speed = 0
         self.old_speed=0
         self.music=False
+        self.initial_waypoint=None
 
-
-
+    def lane_distance(self,world):
+        vehicle=world.player
+        xy=vehicle.get_location()
+        waypoint = world.map.get_waypoint(vehicle.get_location(),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+        if self.initial_waypoint==None:
+            self.initial_waypoint=waypoint
+        # print("Current lane type: " + str(waypoint.lane_type))
+        # # Check current lane change allowed
+        # print("Current Lane change:  " + str(waypoint.lane_change))
+        # # Left and Right lane markings
+        # print("L lane marking type: " + str(waypoint.left_lane_marking.type))
+        # print("L lane marking change: " + str(waypoint.left_lane_marking.lane_change))
+        # print("R lane marking type: " + str(waypoint.right_lane_marking.type))
+        # print("R lane marking change: " + str(waypoint.right_lane_marking.lane_change))
+        distance = math.sqrt((xy.x - self.initial_waypoint.transform.location.x)**2 + (xy.y - self.initial_waypoint.transform.location.y)**2 + (xy.z - self.initial_waypoint.transform.location.z)**2)
+        #print("LANE WIDTH: "+str(waypoint.lane_width))
+        #print(waypoint, type(waypoint))
+        if distance>waypoint.lane_width/2:
+            #print("Crossed lane?")
+            self.initial_waypoint=waypoint = world.map.get_waypoint(vehicle.get_location(),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
 
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
@@ -513,6 +584,7 @@ class HUD(object):
 
 
     def tick(self, world, clock,socket):
+        self.lane_distance(world)
         self._notifications.tick(world, clock)
         if not self._show_info:
             return
@@ -558,7 +630,7 @@ class HUD(object):
                 ('Speed:', c.speed, 0.0, 5.556),
                 ('Jump:', c.jump)]
 
-
+        print("STEER ANGLE?",c.steer)
         #display notification from server
         self._info_text+=['','NOTIFICATION HERE:','']
         self._info_text.append('%s' %(from_server))
@@ -571,12 +643,13 @@ class HUD(object):
             speed = '0'+'%1.0f' %(3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
         
         num = int(speed)
-        epsilon = 4+self.initial_speed
-        epsilon2 = self.initial_speed-4
+        epsilon = 1+self.initial_speed
+        epsilon2 = self.initial_speed-1
       
         if (num<epsilon2 or num>epsilon):
-            self.check_response(world,socket,speed)
+            self.check_response(world,socket,speed,c.steer)
             self.initial_speed = num
+        
 
 
         self._info_text += [
@@ -588,6 +661,8 @@ class HUD(object):
         if len(vehicles) > 1:
             self._info_text += ['Nearby vehicles:']
             distance = lambda l: math.sqrt((l.x - t.location.x)**2 + (l.y - t.location.y)**2 + (l.z - t.location.z)**2)
+            #THIS ALREADY CALCULATES DISTANCE
+
             vehicles = [(distance(x.get_location()), x) for x in vehicles if x.id != world.player.id]
             for d, vehicle in sorted(vehicles):
                 if d > 200.0:
@@ -598,34 +673,34 @@ class HUD(object):
       
         
 
-    def check_response(self,world,socket,speed):
+    def check_response(self,world,socket,speed,steer_angle):
         global from_server
 
         if (from_server=="Slow Down"):
             #playsound('liszt.mp3')
 
             physics_control = world.player.get_physics_control()
-            front_left_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
-            front_right_wheel = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
-            rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=3, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
-            rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
+            #front_left_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.0, steer_angle=70.0, disable_steering=False)
+            #front_right_wheel = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.5, steer_angle=70.0, disable_steering=False)
+            #rear_left_wheel   = carla.WheelPhysicsControl(tire_friction=3, damping_rate=0.2, steer_angle=0.0,  disable_steering=False)
+            #rear_right_wheel  = carla.WheelPhysicsControl(tire_friction=3, damping_rate=1.3, steer_angle=0.0,  disable_steering=False)
 
-            wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
+            #wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
             
-            physics_control.wheels = wheels
+            #physics_control.wheels = wheels
 
             print ('changed tire friction to 3')
-            self.create_thread(socket,speed,physics_control)
+            self.create_thread(socket,speed,steer_angle)
             #print(physics_control)
 
         else:
-            self.create_thread(socket,speed,None)
+            self.create_thread(socket,speed,steer_angle)
 
 
 
-    def create_thread(self,socket,speed,physics):
+    def create_thread(self,socket,speed,steer_angle):
         lock = Lock()
-        t=threading.Thread(target=self.send_info,args=(lock,socket,speed,physics))
+        t=threading.Thread(target=self.send_info,args=(lock,socket,speed,steer_angle))
         t.start()
         t.join()
         
@@ -640,12 +715,13 @@ class HUD(object):
             pygame.mixer.music.load("liszt.mp3")
             pygame.mixer.music.play()
 
-    def send_info(self,lock,socket,speed,physics):
+    def send_info(self,lock,socket,speed,steer):
         global tailgate_distance
 
         #send to server 
         lock.acquire()
-        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(tailgate_distance).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
+        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(steer).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
+        #print(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(tailgate_distance).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
         lock.release()
         
 
@@ -820,6 +896,8 @@ class LaneInvasionSensor(object):
         lane_types = set(x.type for x in event.crossed_lane_markings)
         text = ['%r' % str(x).split()[-1] for x in lane_types]
         self.hud.notification('Crossed line %s' % ' and '.join(text))
+
+
 
 # ==============================================================================
 # -- GnssSensor --------------------------------------------------------
