@@ -553,28 +553,55 @@ class HUD(object):
         self.initial_speed = 0
         self.old_speed=0
         self.music=False
-        self.initial_waypoint=None
+        self.current_waypoint=None
+        self.waypoint_R=None
+        self.waypoint_L=None
+        self.right_dist=0
+        self.left_dist=0
+
+    def change_waypoint(self,w,w1):
+        if w==None:
+            return True
+        elif w.lane_id!=w1.lane_id:
+            return True
+        else:
+            return False
 
     def lane_distance(self,world):
+        #import pdb; pdb.set_trace()
+
         vehicle=world.player
-        xy=vehicle.get_location()
+        debug=world.world.debug
+        print(vehicle.bounding_box)
+        import pdb; pdb.set_trace()
+        #xy=vehicle.get_location()
         waypoint = world.map.get_waypoint(vehicle.get_location(),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
-        if self.initial_waypoint==None:
-            self.initial_waypoint=waypoint
-        # print("Current lane type: " + str(waypoint.lane_type))
-        # # Check current lane change allowed
-        # print("Current Lane change:  " + str(waypoint.lane_change))
-        # # Left and Right lane markings
-        # print("L lane marking type: " + str(waypoint.left_lane_marking.type))
-        # print("L lane marking change: " + str(waypoint.left_lane_marking.lane_change))
-        # print("R lane marking type: " + str(waypoint.right_lane_marking.type))
-        # print("R lane marking change: " + str(waypoint.right_lane_marking.lane_change))
-        distance = math.sqrt((xy.x - self.initial_waypoint.transform.location.x)**2 + (xy.y - self.initial_waypoint.transform.location.y)**2 + (xy.z - self.initial_waypoint.transform.location.z)**2)
+        #print(waypoint)
+       
+        #if self.change_waypoint(self.current_waypoint,waypoint)==True:
+        self.current_waypoint=waypoint
+        
+        right_waypoint=self.current_waypoint.get_right_lane()
+        #print(right_waypoint)
+        left_waypoint=self.current_waypoint.get_left_lane()
+        #print(left_waypoint)
+        # if self.change_waypoint(self.waypoint_R,right_waypoint):
+        self.waypoint_R=right_waypoint
+
+        # if self.change_waypoint(self.waypoint_L,left_waypoint):
+        self.waypoint_L=left_waypoint
+
+
+
         #print("LANE WIDTH: "+str(waypoint.lane_width))
-        #print(waypoint, type(waypoint))
-        if distance>waypoint.lane_width/2:
-            #print("Crossed lane?")
-            self.initial_waypoint=waypoint = world.map.get_waypoint(vehicle.get_location(),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+        if (right_waypoint!=None and left_waypoint!=None):
+            self.right_dist=math.sqrt((self.waypoint_R.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_R.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_R.transform.location.z - vehicle.get_location().z)**2)
+            self.right_dist-=self.waypoint_R.lane_width/2.0
+            self.left_dist=math.sqrt((self.waypoint_L.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_L.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_L.transform.location.z - vehicle.get_location().z)**2)
+            self.left_dist-=self.waypoint_L.lane_width/2.0
+            print(self.right_dist,self.left_dist)
+       
+
 
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
@@ -630,7 +657,6 @@ class HUD(object):
                 ('Speed:', c.speed, 0.0, 5.556),
                 ('Jump:', c.jump)]
 
-        print("STEER ANGLE?",c.steer)
         #display notification from server
         self._info_text+=['','NOTIFICATION HERE:','']
         self._info_text.append('%s' %(from_server))
@@ -646,10 +672,15 @@ class HUD(object):
         epsilon = 1+self.initial_speed
         epsilon2 = self.initial_speed-1
       
-        if (num<epsilon2 or num>epsilon):
-            self.check_response(world,socket,speed,c.steer)
-            self.initial_speed = num
+        #if (num<epsilon2 or num>epsilon):
+        self.check_response(world,socket,speed,c.steer)
+        self.initial_speed = num
         
+        self._info_text+=['','Distance from right lane: ']
+        self._info_text.append('%fm' % (self.right_dist))
+        self._info_text+=['Distance from left lane: ']
+        self._info_text.append('%fm' % (self.left_dist))
+
 
 
         self._info_text += [
@@ -714,6 +745,7 @@ class HUD(object):
             pygame.mixer.init()
             pygame.mixer.music.load("liszt.mp3")
             pygame.mixer.music.play()
+
 
     def send_info(self,lock,socket,speed,steer):
         global tailgate_distance
