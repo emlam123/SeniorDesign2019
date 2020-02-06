@@ -6,11 +6,16 @@ import datetime
 import csv
 from multiprocessing import Lock
 from statistics import *
+import numpy as np
+import pandas as pd
 
 print_lock = threading.Lock()
 carla_lock = Lock()
 state = "normal"
 
+
+def data_frame_thread(df):
+    df['Angle Diff'] =  df.loc[1:, 'Angles'] - df.at[0, 'Angles']
 def algorithm_thread(filename, buffer):
     with open(filename, 'a', newline='') as f:
         hello = [mean(buffer), stdev(buffer), variance(buffer),str(datetime.datetime.now().time())]
@@ -24,16 +29,22 @@ def writing_thread(filename, buffer):
             writer.writerow(data)
 
 def state_calc(value):
+
     global state
-    if value > 7 :
+
+    if value > 7:
         state = "angry"
-    elif value < 5 :
+
+    elif value < 5:
         state = "drowsy"
+
     else:
         state = "normal"
 
 def threaded(c):
     global state
+    steer_list = []
+    time_list = []
     heartrate_queue = [None] * 30
     speed_queue = [None] * 30
     force_queue = [None] * 30
@@ -50,6 +61,8 @@ def threaded(c):
     heartrate_sum = 0
     speed_sum = 0
     force_sum = 0
+
+    mili = -1000
     while True:
 
         data = c.recv(1024)
@@ -81,27 +94,50 @@ def threaded(c):
                 ##print('sent none')
             # carla_lock.release()
 
-            steering_angle = message[1]
 
-            print("Driver is:" + str(state))
+
+            steering_angle = message[1]
+            dt_obj = datetime.datetime.strptime(message[2],
+                                                '%Y-%m-%d %H:%M:%S.%f')
+            compare_time = dt_obj.timestamp() * 1000
+
+            if mili == -1000:
+                mili = compare_time
+
+            if compare_time - mili < 500:
+                steer_list.append(float(steering_angle) * 10.0)
+                time_list.append(compare_time)
+
+            else:
+                df_steer = pd.DataFrame({'Miliseconds':time_list,
+                                         'Angles': steer_list,
+                                         'Angle Diff':[],})
+                start_new_thread(data_frame_thread, (df_steer,))
+                steer_list.clear()
+                time_list.clear()
+                mili = compare_time
+
+
+
+            #print("Driver is:" + str(state))
             if state == "normal":
                 if(float(steering_angle) > .59 ):
                     c.send(("Steering too fast to the right").encode())
-                    print(steering_angle)
+                    #print(steering_angle)
                 if(float(steering_angle) < -.59):
                     c.send(("Steering too fast to the left").encode())
-                    print(steering_angle)
+                    #print(steering_angle)
 
             if state == "angry":
                 if(float(steering_angle) > .49 ):
                     c.send(("Steering too fast to the right").encode())
-                    print(steering_angle)
+                    #print(steering_angle)
                 if(float(steering_angle) < -.49):
                     c.send(("Steering too fast to the left").encode())
-                    print(steering_angle)
+                    #print(steering_angle)
 
             if state == "drowsy":
-                print("ello")
+                print("Helloooo1ooo11oo1o1ooo1")
 
             ##if message[2] != "None":
                 ##print(message[2])
