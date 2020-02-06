@@ -9,6 +9,7 @@ from statistics import *
 
 print_lock = threading.Lock()
 carla_lock = Lock()
+state = "normal"
 
 def algorithm_thread(filename, buffer):
     with open(filename, 'a', newline='') as f:
@@ -20,78 +21,31 @@ def writing_thread(filename, buffer):
     with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
         for data in buffer:
-            print(str(datetime.datetime.now().time()))
             writer.writerow(data)
 
-def speed_thread(c):
-    speed_queue = [None] * 30
-
-    speed_pointer = 0
-
-    speed_sum = 0
-    while True:
-
-        data = c.recv(1024)
-        if not data:
-            print('Bye')
-            sys.exit(0)
-        message = str(data.decode('ascii'))
-        if message[0] == "1":
-            print(message)
-            message = message.replace('1:', '')
-            print("Received at: " + str(datetime.datetime.now()))
-            message = message.split("\n")  ## message[0] refers to speed 2 is time
-            speed = int(message[0])
-            print(speed)
-
-            # if (speed<=10):
-            #    c.send(("None").encode())
-            carla_lock.acquire()
-            if (speed > 10 and speed < 60):
-                c.send(("Slow Down").encode())
-            elif (speed >= 60):
-                c.send(("Thats fast").encode())
-            elif (speed <= 10):
-                c.send(("None").encode())
-                print('sent none')
-            carla_lock.release()
-
-            if speed_pointer == 29:
-                print("Writing to CSV file")
-                speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()),
-                                              message[1]]  # [0] - msg string, [1] - speed, [2] - date
-
-                with open('speed_rate.csv', 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    print("Writing to speed_rate.csv")
-                    for data in speed_queue:
-                        speed_sum = speed_sum + int(data[0])
-                        writer.writerow(data)
-
-                with open('average_speed.csv', 'a', newline='') as f:
-                    print("Writing averages")
-                    hello = [float(speed_sum / 30), str(datetime.datetime.now().time())]
-                    writer = csv.writer(f)
-                    writer.writerow(hello)
-                speed_sum = 0
-                speed_pointer = 0
-            speed_queue[speed_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]]
-            speed_pointer += 1
-        else:
-            continue
-
+def state_calc(value):
+    global state
+    if value > 7 :
+        state = "angry"
+    elif value < 5 :
+        state = "drowsy"
+    else:
+        state = "normal"
 
 def threaded(c):
+    global state
     heartrate_queue = [None] * 30
     speed_queue = [None] * 30
     force_queue = [None] * 30
 
     speedvals = [None] * 30
     forcevals = [None] * 30
+    distancevals = [None] * 10
 
     heartrate_pointer = 0
     speed_pointer = 0
     force_pointer = 0
+    distance_pointer = 0
 
     heartrate_sum = 0
     speed_sum = 0
@@ -127,23 +81,39 @@ def threaded(c):
                 ##print('sent none')
             # carla_lock.release()
 
-            physics = message[1]
+            steering_angle = message[1]
 
-            car_data = physics.split(',')
-            # print (car_data)
-            if car_data[0] != "None":
-                # print('')
-                # print (car_data[27])
-                tire_friction = car_data[27].split('=')
-                tire_friction = tire_friction[2]
-                ##print(tire_friction)
+            print("Driver is:" + str(state))
+            if state == "normal":
+                if(float(steering_angle) > .59 ):
+                    c.send(("Steering too fast to the right").encode())
+                    print(steering_angle)
+                if(float(steering_angle) < -.59):
+                    c.send(("Steering too fast to the left").encode())
+                    print(steering_angle)
 
-                # carla_lock.acquire()
-                if (float(tire_friction) == 1.5):
-                    # print('tire friction is 1.5')
-                    c.send(("Tire friction is 1.5").encode())
+            if state == "angry":
+                if(float(steering_angle) > .49 ):
+                    c.send(("Steering too fast to the right").encode())
+                    print(steering_angle)
+                if(float(steering_angle) < -.49):
+                    c.send(("Steering too fast to the left").encode())
+                    print(steering_angle)
 
-                # carla_lock.release()
+            if state == "drowsy":
+                print("ello")
+
+            ##if message[2] != "None":
+                ##print(message[2])
+
+                ##if distance_pointer == 9:
+                    ##distancevals[distance_pointer] = [float(message[2]), str(datetime.datetime.now().time()), message[3]]
+                    ##distance_buffer = distancevals.copy()
+                    ##start_new_thread(writing_thread, ("distance_values.csv", distance_buffer))
+                    ##distance_pointer = 0
+                ##distancevals[distance_pointer] = [float(message[2]), str(datetime.datetime.now().time()), message[3]]
+                ##distance_pointer += 1
+
 
             if speed_pointer == 29:
                 ##print("Writing to CSV file")
@@ -160,10 +130,10 @@ def threaded(c):
             ##print("speed pointer did pass and it was : " + str(speed_pointer))
 
         # Force Sensor is flag 2
-        elif message[0] == "2":
+        elif message[0] == "2":  # message[0] = to value
             message = message.replace("2:", '')
             message = message.split("\n")
-            # print("Force Sensor Data Received at: " + str(datetime.datetime.now().time()))
+            state_calc(int(message[0]))
             if force_pointer == 29:
                 # print("Writing to CSV file")
                 force_queue[force_pointer] = [message[0], str(datetime.datetime.now().time()), message[1]]
