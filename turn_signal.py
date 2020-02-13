@@ -5,9 +5,7 @@ def signal(right,left):
     print(right,left)
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
-    #right
     GPIO.setup(5, GPIO.OUT, initial=GPIO.LOW)
-    #left
     GPIO.setup(6, GPIO.OUT, initial=GPIO.LOW)
 
     #have separate thread
@@ -29,8 +27,5 @@ def signal(right,left):
 
     finally:
         GPIO.cleanup()
-
-
-
 
 
