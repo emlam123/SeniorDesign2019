@@ -135,6 +135,8 @@ try:
     from pygame.locals import K_EQUALS
 
     from pygame.locals import K_v
+    from pygame.locals import K_x
+    from pygame.locals import K_z
 
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
@@ -147,7 +149,8 @@ except ImportError:
 
 
 
-
+turn_right=False
+turn_left=False
 from_server = 'None'
 
 
@@ -268,7 +271,7 @@ class World(object):
         loc.append(spawn_point)
         spawn_points = self.map.get_spawn_points()
         spawn_point = random.choice(spawn_points)
-        print(spawn_point)
+        #print(spawn_point)
         spawn_point.location.x=25.715
         spawn_point.location.y=146.5
         spawn_point.location.z=2.5
@@ -287,7 +290,7 @@ class World(object):
         while new_actor is None:
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) #if spawn_points else carla.Transform()
-            print(spawn_point)
+            #print(spawn_point)
             new_actor = self.world.try_spawn_actor(blueprint, spawn_point)
             self.dummies.append(new_actor)
 
@@ -321,7 +324,7 @@ class World(object):
             spawn_point.rotation.yaw=0.234757
             spawn_point.rotation.roll=0
 
-            print(spawn_point)
+            #print(spawn_point)
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
             #self.spawn_vehicle()
         # Set up the sensors.
@@ -400,8 +403,10 @@ class KeyboardControl(object):
 
 
     def parse_events(self, client, world, clock):
+        global turn_left
+        global turn_right
+
         for event in pygame.event.get():
-           
             if event.type == pygame.QUIT:
                 return True
             elif event.type == pygame.KEYUP:
@@ -411,6 +416,18 @@ class KeyboardControl(object):
                 elif event.key == K_v:
                     #spawn more dummy vehicles
                     world.dummy_vehicle()
+               
+                #turn signals
+                elif event.key == K_x and not (pygame.key.get_mods() & KMOD_CTRL):
+                    turn_right=True
+                    print(turn_right)
+                elif event.key == K_x and (pygame.key.get_mods() & KMOD_CTRL):
+                    turn_right=False
+                elif event.key == K_z and not (pygame.key.get_mods() & KMOD_CTRL):
+                    turn_left=True
+                    print(turn_left)
+                elif event.key == K_z and (pygame.key.get_mods() & KMOD_CTRL):
+                    turn_left=False
 
                 elif event.key == K_BACKSPACE:
                     world.restart()
@@ -567,39 +584,53 @@ class HUD(object):
         else:
             return False
 
+    def calculate_distance(self,loc,w):
+        dist=math.sqrt((w.transform.location.x - loc[0])**2 + (w.transform.location.y - loc[1])**2 + (w.transform.location.z - loc[2])**2)
+        dist-=w.lane_width/2.0
+        return dist
+
     def lane_distance(self,world):
         #import pdb; pdb.set_trace()
 
         vehicle=world.player
         debug=world.world.debug
-        print(vehicle.bounding_box)
-        import pdb; pdb.set_trace()
-        #xy=vehicle.get_location()
-        waypoint = world.map.get_waypoint(vehicle.get_location(),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+        box=vehicle.bounding_box
+        loc=vehicle.get_location()
+        #print(loc)
+
+        tr_v=(loc.x+box.extent.x, loc.y+box.extent.y, loc.z)
+        tl_v=(loc.x-box.extent.x, loc.y+box.extent.y, loc.z)
+        br_v=(loc.x+box.extent.x, loc.y-box.extent.y, loc.z)
+        bl_v=(loc.x-box.extent.x, loc.y-box.extent.y, loc.z)
+
+        print(tr_v,tl_v,br_v,bl_v)
+        #print(tr_v[0])
+        #import pdb; pdb.set_trace()
+        
+        waypoint = world.map.get_waypoint(loc,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
         #print(waypoint)
        
-        #if self.change_waypoint(self.current_waypoint,waypoint)==True:
         self.current_waypoint=waypoint
         
-        right_waypoint=self.current_waypoint.get_right_lane()
-        #print(right_waypoint)
-        left_waypoint=self.current_waypoint.get_left_lane()
-        #print(left_waypoint)
-        # if self.change_waypoint(self.waypoint_R,right_waypoint):
-        self.waypoint_R=right_waypoint
-
-        # if self.change_waypoint(self.waypoint_L,left_waypoint):
-        self.waypoint_L=left_waypoint
-
+        self.waypoint_R=self.current_waypoint.get_right_lane()
+        self.waypoint_L=self.current_waypoint.get_left_lane()
 
 
         #print("LANE WIDTH: "+str(waypoint.lane_width))
-        if (right_waypoint!=None and left_waypoint!=None):
+        if (self.waypoint_R!=None and self.waypoint_L!=None):
+            # top_r=self.calculate_distance(tr_v,self.waypoint_R)
+            # top_l=self.calculate_distance(tl_v,self.waypoint_L)
+            # bottom_r=self.calculate_distance(br_v,self.waypoint_R)
+            # bottom_l=self.calculate_distance(bl_v,self.waypoint_L)
+            # self.right_dist=min(top_r,bottom_r)
+            # self.left_dist=min(top_l,bottom_l)
+
+            #through middle
             self.right_dist=math.sqrt((self.waypoint_R.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_R.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_R.transform.location.z - vehicle.get_location().z)**2)
             self.right_dist-=self.waypoint_R.lane_width/2.0
             self.left_dist=math.sqrt((self.waypoint_L.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_L.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_L.transform.location.z - vehicle.get_location().z)**2)
             self.left_dist-=self.waypoint_L.lane_width/2.0
-            print(self.right_dist,self.left_dist)
+           #print(self.right_dist,self.left_dist)
        
 
 
@@ -752,7 +783,7 @@ class HUD(object):
 
         #send to server 
         lock.acquire()
-        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(steer).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
+        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(steer).encode()+("\n").encode()+str(turn_left).encode()+("\n").encode()+str(turn_right).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
         #print(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(tailgate_distance).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
         lock.release()
         
@@ -1073,7 +1104,7 @@ def game_loop(args,socket):
     global from_server
 
     try:
-        print(carla)
+        #print(carla)
         client = carla.Client(args.host, args.port)
         client.set_timeout(4.0)
 
