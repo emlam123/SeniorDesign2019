@@ -148,7 +148,7 @@ except ImportError:
 
 
 
-
+steer_angle=0
 turn_right=False
 turn_left=False
 from_server = 'None'
@@ -594,21 +594,67 @@ class HUD(object):
 
         vehicle=world.player
         debug=world.world.debug
+        #debug=carla.DebugHelper()
         box=vehicle.bounding_box
+        #loc=box.location
         loc=vehicle.get_location()
         #print(loc)
+        fwd=vehicle.get_transform().get_forward_vector()
+        print(fwd)
+        if fwd.x>fwd.y:
+            orientation='x'
+        else:
+            orientation='y'
 
+        print("YAW: ",vehicle.get_transform().rotation.yaw)
+        # if orientation=='y':
         tr_v=(loc.x+box.extent.x, loc.y+box.extent.y, loc.z)
-        tl_v=(loc.x-box.extent.x, loc.y+box.extent.y, loc.z)
-        br_v=(loc.x+box.extent.x, loc.y-box.extent.y, loc.z)
+        tl_v=(loc.x+box.extent.x, loc.y-box.extent.y, loc.z)
+        br_v=(loc.x-box.extent.x, loc.y+box.extent.y, loc.z)
         bl_v=(loc.x-box.extent.x, loc.y-box.extent.y, loc.z)
+        # else:
+        # tr_v=(loc.x+(box.extent.x*fwd.x), loc.y+(box.extent.y*fwd.y), loc.z)
+        # tl_v=(loc.x+(box.extent.x*fwd.x), loc.y-(box.extent.y*fwd.y), loc.z)
+        # br_v=(loc.x-(box.extent.x*fwd.x), loc.y+(box.extent.y*fwd.y), loc.z)
+        # bl_v=(loc.x-(box.extent.x*fwd.x), loc.y-(box.extent.y*fwd.y), loc.z)
 
-        print(tr_v,tl_v,br_v,bl_v)
+
+        tr=carla.Location()
+        tr.x=tr_v[0]
+        tr.y=tr_v[1]
+        tr.z=tr_v[2]
+
+        tl=carla.Location()
+        tl.x=tl_v[0]
+        tl.y=tl_v[1]
+        tl.z=tl_v[2]
+
+        br=carla.Location()
+        br.x=br_v[0]
+        br.y=br_v[1]
+        br.z=br_v[2]
+
+        bl=carla.Location()
+        bl.x=bl_v[0]
+        bl.y=bl_v[1]
+        bl.z=bl_v[2]
+
+
+        
+
+        #print(tr_v,tl_v,br_v,bl_v)
         #print(tr_v[0])
         #import pdb; pdb.set_trace()
+        # loc1=carla.Location()
+        # loc1.x=loc.x
+        # loc1.y=loc.y+box.extent.y
+        # loc1.z=loc.z
         
+        # print(loc1, box.extent.y)
+        # waypoint1 = world.map.get_waypoint(loc1,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
         waypoint = world.map.get_waypoint(loc,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
-        #print(waypoint)
+        # print("true center: ",waypoint)
+        
        
         self.current_waypoint=waypoint
         
@@ -616,21 +662,49 @@ class HUD(object):
         self.waypoint_L=self.current_waypoint.get_left_lane()
 
 
+        # print("L and R waypoint: ",self.waypoint_R, self.waypoint_L)
         #print("LANE WIDTH: "+str(waypoint.lane_width))
         if (self.waypoint_R!=None and self.waypoint_L!=None):
-            # top_r=self.calculate_distance(tr_v,self.waypoint_R)
-            # top_l=self.calculate_distance(tl_v,self.waypoint_L)
-            # bottom_r=self.calculate_distance(br_v,self.waypoint_R)
-            # bottom_l=self.calculate_distance(bl_v,self.waypoint_L)
-            # self.right_dist=min(top_r,bottom_r)
-            # self.left_dist=min(top_l,bottom_l)
+            
+            if fwd.x>fwd.y:
+                orientation='x'
+            else:
+                orientation='y'
 
-            #through middle
-            self.right_dist=math.sqrt((self.waypoint_R.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_R.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_R.transform.location.z - vehicle.get_location().z)**2)
-            self.right_dist-=self.waypoint_R.lane_width/2.0
-            self.left_dist=math.sqrt((self.waypoint_L.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_L.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_L.transform.location.z - vehicle.get_location().z)**2)
-            self.left_dist-=self.waypoint_L.lane_width/2.0
-           #print(self.right_dist,self.left_dist)
+            if orientation=='y':
+                wr=carla.Location(self.waypoint_R.transform.location.x, self.waypoint_R.transform.location.y+box.extent.y, self.waypoint_R.transform.location.z)
+                wl=carla.Location(self.waypoint_L.transform.location.x, self.waypoint_L.transform.location.y+box.extent.y, self.waypoint_L.transform.location.z)
+
+            else:
+                wr=carla.Location(self.waypoint_R.transform.location.x+box.extent.x, self.waypoint_R.transform.location.y, self.waypoint_R.transform.location.z)
+                wl=carla.Location(self.waypoint_L.transform.location.x+box.extent.x, self.waypoint_L.transform.location.y, self.waypoint_L.transform.location.z)
+
+
+            # debug.draw_point(location=tr, size=0.8, color=carla.Color(255,0,255),life_time=0,persistent_lines=True)
+            # debug.draw_point(location=tl, size=0.8, color=carla.Color(255,0,255),life_time=0,persistent_lines=True)
+            # debug.draw_point(location=waypoint.transform.location, size=0.8, color=carla.Color(255,0,0),life_time=0,persistent_lines=True)
+            #debug.draw_point(location=self.waypoint_R.transform.location, size=0.1, color=carla.Color(255,255,0),life_time=0,persistent_lines=True)
+            #debug.draw_point(location=self.waypoint_L.transform.location, size=0.1, color=carla.Color(255,255,0),life_time=0,persistent_lines=True)
+
+            # #import pdb; pdb.set_trace()
+            #debug.draw_point(location=wr, size=0.1, color=carla.Color(255,0,0),life_time=0,persistent_lines=True)
+            #debug.draw_point(location=wl, size=0.1, color=carla.Color(255,0,0),life_time=0,persistent_lines=True)
+
+
+
+            # print("L:",wl," ",tl)
+            # print("R:",wr," ",tr)
+
+            #import pdb; pdb.set_trace()
+            self.right_dist=tr.distance(wr)-self.waypoint_R.lane_width/2
+            self.left_dist=tl.distance(wl)-self.waypoint_L.lane_width/2
+            
+            # #through middle
+            # self.right_dist=math.sqrt((self.waypoint_R.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_R.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_R.transform.location.z - vehicle.get_location().z)**2)
+            # self.right_dist-=self.waypoint_R.lane_width/2.0
+            # self.left_dist=math.sqrt((self.waypoint_L.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_L.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_L.transform.location.z - vehicle.get_location().z)**2)
+            # self.left_dist-=self.waypoint_L.lane_width/2.0
+            #print(self.right_dist,self.left_dist)
        
 
 
@@ -704,6 +778,8 @@ class HUD(object):
         epsilon2 = self.initial_speed-1
       
         #if (num<epsilon2 or num>epsilon):
+        global steer_angle
+        steer_angle=c.steer
         self.check_response(world,socket,speed,c.steer)
         self.initial_speed = num
         
@@ -751,7 +827,7 @@ class HUD(object):
             
             #physics_control.wheels = wheels
 
-            print ('changed tire friction to 3')
+            #print ('changed tire friction to 3')
             self.create_thread(socket,speed,steer_angle)
             #print(physics_control)
 
@@ -953,12 +1029,15 @@ class LaneInvasionSensor(object):
 
     @staticmethod
     def _on_invasion(weak_self, event):
+        global steer_angle
+        print(event)
         self = weak_self()
         if not self:
             return
         lane_types = set(x.type for x in event.crossed_lane_markings)
         text = ['%r' % str(x).split()[-1] for x in lane_types]
         self.hud.notification('Crossed line %s' % ' and '.join(text))
+        print(self._parent.get_location(), steer_angle)
 
 
 
@@ -1255,3 +1334,6 @@ if __name__ == '__main__':
         t.join()
     except KeyboardInterrupt:
         sys.exit(0)
+
+    finally:
+        sys.exit(1)
