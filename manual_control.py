@@ -100,6 +100,7 @@ import math
 import random
 import re
 import weakref
+import seg
 
 tailgate_distance=None
 try:
@@ -147,11 +148,13 @@ except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
 
 
-
+diff=0
 steer_angle=0
 turn_right=False
 turn_left=False
 from_server = 'None'
+dist_left=0
+dist_right=0
 
 
 # ==============================================================================
@@ -589,6 +592,12 @@ class HUD(object):
         dist-=w.lane_width/2.0
         return dist
 
+    def rotate(self,yaw,point):
+        c=math.cos(math.radians(yaw))
+        s=math.sin(math.radians(yaw))
+
+        return ((c*point[0]-s*point[1],s*point[0]+c*point[1]))
+
     def lane_distance(self,world):
         #import pdb; pdb.set_trace()
 
@@ -600,24 +609,37 @@ class HUD(object):
         loc=vehicle.get_location()
         #print(loc)
         fwd=vehicle.get_transform().get_forward_vector()
-        print(fwd)
+        #print(fwd)
+
+        #was working
         if fwd.x>fwd.y:
             orientation='x'
         else:
             orientation='y'
 
-        print("YAW: ",vehicle.get_transform().rotation.yaw)
-        # if orientation=='y':
+        yaw=vehicle.get_transform().rotation.yaw
+        
         tr_v=(loc.x+box.extent.x, loc.y+box.extent.y, loc.z)
         tl_v=(loc.x+box.extent.x, loc.y-box.extent.y, loc.z)
         br_v=(loc.x-box.extent.x, loc.y+box.extent.y, loc.z)
         bl_v=(loc.x-box.extent.x, loc.y-box.extent.y, loc.z)
-        # else:
-        # tr_v=(loc.x+(box.extent.x*fwd.x), loc.y+(box.extent.y*fwd.y), loc.z)
-        # tl_v=(loc.x+(box.extent.x*fwd.x), loc.y-(box.extent.y*fwd.y), loc.z)
-        # br_v=(loc.x-(box.extent.x*fwd.x), loc.y+(box.extent.y*fwd.y), loc.z)
-        # bl_v=(loc.x-(box.extent.x*fwd.x), loc.y-(box.extent.y*fwd.y), loc.z)
+        
 
+        # b1=(box.extent.x,box.extent.y)
+        # b2=(box.extent.x,-box.extent.y)
+        # b3=(-box.extent.x, box.extent.y)
+        # b4=(-box.extent.x, -box.extent.y)
+
+        # r1=self.rotate(yaw,b1)
+        # r2=self.rotate(yaw,b2)
+        # r3=self.rotate(yaw,b3)
+        # r4=self.rotate(yaw,b4)
+
+
+        # tr_v=(loc.x+r1[0], loc.y+r1[1], loc.z)
+        # tl_v=(loc.x+r3[0], loc.y+r3[1], loc.z)
+        # br_v=(loc.x+r2[0], loc.y+r2[1], loc.z)
+        # bl_v=(loc.x+r4[0], loc.y+r4[1], loc.z)
 
         tr=carla.Location()
         tr.x=tr_v[0]
@@ -640,20 +662,11 @@ class HUD(object):
         bl.z=bl_v[2]
 
 
-        
-
-        #print(tr_v,tl_v,br_v,bl_v)
-        #print(tr_v[0])
         #import pdb; pdb.set_trace()
-        # loc1=carla.Location()
-        # loc1.x=loc.x
-        # loc1.y=loc.y+box.extent.y
-        # loc1.z=loc.z
+
         
-        # print(loc1, box.extent.y)
-        # waypoint1 = world.map.get_waypoint(loc1,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
         waypoint = world.map.get_waypoint(loc,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
-        # print("true center: ",waypoint)
+
         
        
         self.current_waypoint=waypoint
@@ -680,6 +693,11 @@ class HUD(object):
                 wl=carla.Location(self.waypoint_L.transform.location.x+box.extent.x, self.waypoint_L.transform.location.y, self.waypoint_L.transform.location.z)
 
 
+            # w1 = world.map.get_waypoint(tr,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+            # w2 = world.map.get_waypoint(tl,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+            # w3 = world.map.get_waypoint(br,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+            # w4 = world.map.get_waypoint(bl,project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Shoulder | carla.LaneType.Sidewalk))
+            
             # debug.draw_point(location=tr, size=0.8, color=carla.Color(255,0,255),life_time=0,persistent_lines=True)
             # debug.draw_point(location=tl, size=0.8, color=carla.Color(255,0,255),life_time=0,persistent_lines=True)
             # debug.draw_point(location=waypoint.transform.location, size=0.8, color=carla.Color(255,0,0),life_time=0,persistent_lines=True)
@@ -690,14 +708,22 @@ class HUD(object):
             #debug.draw_point(location=wr, size=0.1, color=carla.Color(255,0,0),life_time=0,persistent_lines=True)
             #debug.draw_point(location=wl, size=0.1, color=carla.Color(255,0,0),life_time=0,persistent_lines=True)
 
+            # d1 = tr.distance(w1)-self.waypoint_R.lane_width/2
+            # d2 = tl.distance(w2)-self.waypoint_L.lane_width/2
+            # d3 = br.distance(w3)-self.waypoint_R.lane_width/2
+            # d4 = bl.distance(w4)-self.waypoint_L.lane_width/2
 
-
-            # print("L:",wl," ",tl)
-            # print("R:",wr," ",tr)
-
+            # self.right_dist=min(d1,d3)
+            # self.left_dist=min(d2,d4)
             #import pdb; pdb.set_trace()
             self.right_dist=tr.distance(wr)-self.waypoint_R.lane_width/2
             self.left_dist=tl.distance(wl)-self.waypoint_L.lane_width/2
+
+            global dist_left
+            global dist_right
+
+            dist_left=self.left_dist
+            dist_right=self.right_dist
             
             # #through middle
             # self.right_dist=math.sqrt((self.waypoint_R.transform.location.x - vehicle.get_location().x)**2 + (self.waypoint_R.transform.location.y - vehicle.get_location().y)**2 + (self.waypoint_R.transform.location.z - vehicle.get_location().z)**2)
@@ -716,7 +742,7 @@ class HUD(object):
 
 
     def tick(self, world, clock,socket):
-        self.lane_distance(world)
+        # self.lane_distance(world)
         self._notifications.tick(world, clock)
         if not self._show_info:
             return
@@ -828,11 +854,15 @@ class HUD(object):
             #physics_control.wheels = wheels
 
             #print ('changed tire friction to 3')
-            self.create_thread(socket,speed,steer_angle)
+            #self.create_thread(socket,speed,steer_angle)
             #print(physics_control)
+        elif (from_server=="Steering too far to the right (high steer)") or (from_server=="Steering too far to the left (high steer)"):
+            self.warning_thread("beep.mp3")
 
-        else:
-            self.create_thread(socket,speed,steer_angle)
+        elif (from_server=="Steering too far to the right (low steer)") or (from_server=="Steering too far to the left (low steer)"):
+            self.warning_thread("short_beep.mp3")
+        
+        self.create_thread(socket,speed,steer_angle)
 
 
 
@@ -841,26 +871,30 @@ class HUD(object):
         t=threading.Thread(target=self.send_info,args=(lock,socket,speed,steer_angle))
         t.start()
         t.join()
-        
-        music=threading.Thread(target=self.play_liszt,args=())
-        music.start()
-        music.join()
+
+    def warning_thread(self,file):
+        warn=threading.Thread(target=self.play_noise,args=(file,))
+        warn.start()
+        warn.join()
         
 
-    def play_liszt(self):
+    def play_noise(self,file):
         if pygame.mixer.music.get_busy()==False:
             pygame.mixer.init()
-            pygame.mixer.music.load("liszt.mp3")
+            pygame.mixer.music.load(file)
             pygame.mixer.music.play()
 
 
     def send_info(self,lock,socket,speed,steer):
-        global tailgate_distance
+        global dist_left
+        global dist_right
+        global steer_angle
+
 
         #send to server 
         lock.acquire()
-        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(steer).encode()+("\n").encode()+str(turn_left).encode()+("\n").encode()+str(turn_right).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
-        #print(('1:').encode()+speed.encode()+("\n").encode()+str(physics).encode()+("\n").encode()+str(tailgate_distance).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
+        socket.send(('1:').encode()+speed.encode()+("\n").encode()+str(steer_angle).encode()+("\n").encode()+str(dist_left).encode()+("\n").encode()+str(dist_right).encode()+("\n").encode()+str(turn_left).encode()+("\n").encode()+str(turn_right).encode()+("\n").encode()+str(datetime.datetime.now()).encode())
+        # print(steer_angle,dist_left,dist_right)
         lock.release()
         
 
@@ -1030,14 +1064,14 @@ class LaneInvasionSensor(object):
     @staticmethod
     def _on_invasion(weak_self, event):
         global steer_angle
-        print(event)
+        # print(event)
         self = weak_self()
         if not self:
             return
         lane_types = set(x.type for x in event.crossed_lane_markings)
         text = ['%r' % str(x).split()[-1] for x in lane_types]
         self.hud.notification('Crossed line %s' % ' and '.join(text))
-        print(self._parent.get_location(), steer_angle)
+        # print(self._parent.get_location(), steer_angle)
 
 
 
@@ -1086,13 +1120,14 @@ class CameraManager(object):
             carla.Transform(carla.Location(x=1.6, z=1.7))]
         self.transform_index = 1
         self.sensors = [
+            ['sensor.camera.semantic_segmentation', carla.ColorConverter.CityScapesPalette,
+                'Camera Semantic Segmentation (CityScapes Palette)'],
             ['sensor.camera.rgb', carla.ColorConverter.Raw, 'Camera RGB'],
             ['sensor.camera.depth', carla.ColorConverter.Raw, 'Camera Depth (Raw)'],
             ['sensor.camera.depth', carla.ColorConverter.Depth, 'Camera Depth (Gray Scale)'],
             ['sensor.camera.depth', carla.ColorConverter.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)'],
             ['sensor.camera.semantic_segmentation', carla.ColorConverter.Raw, 'Camera Semantic Segmentation (Raw)'],
-            ['sensor.camera.semantic_segmentation', carla.ColorConverter.CityScapesPalette,
-                'Camera Semantic Segmentation (CityScapes Palette)'],
+            
             ['sensor.lidar.ray_cast', None, 'Lidar (Ray-Cast)']]
         world = self._parent.get_world()
         bp_library = world.get_blueprint_library()
@@ -1167,7 +1202,12 @@ class CameraManager(object):
             array = array[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         if self.recording:
+            global diff
             image.save_to_disk('_out/%08d' % image.frame_number)
+            frame='%08d' % image.frame_number
+            diff = seg.lane_diff(frame)
+            print(diff)
+            ##call segmentation function look for image w/ image.frame_number + prev
 
 
 # ==============================================================================
