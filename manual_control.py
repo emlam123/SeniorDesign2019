@@ -742,7 +742,7 @@ class HUD(object):
 
 
     def tick(self, world, clock,socket):
-        # self.lane_distance(world)
+        self.lane_distance(world)
         self._notifications.tick(world, clock)
         if not self._show_info:
             return
@@ -1206,6 +1206,9 @@ class CameraManager(object):
             image.save_to_disk('_out/%08d' % image.frame_number)
             frame='%08d' % image.frame_number
             diff = seg.lane_diff(frame)
+            if diff>10000:
+                self.hud.warning_thread("beep.mp3")
+
             print(diff)
             ##call segmentation function look for image w/ image.frame_number + prev
 
